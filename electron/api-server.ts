@@ -1,11 +1,17 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
-import { openai } from '@ai-sdk/openai';
-import { streamText } from 'ai';
+import { generateText, convertToModelMessages, type UIMessage } from 'ai';
+import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
 
 // Load environment variables
 dotenv.config();
+
+const v4api = createOpenAICompatible({
+  name: 'v4api',
+  apiKey: process.env.OPENAI_API_KEY!,
+  baseURL: "https://api.gpt.ge/v1"
+});
 
 export function createAPIServer(port = 3001) {
   const app = express();
@@ -15,11 +21,16 @@ export function createAPIServer(port = 3001) {
 
   app.post('/api/chat', async (req, res) => {
     try {
-      const { messages } = req.body;
+      const { messages }: { messages: UIMessage[] } = req.body;
+      console.log('📨 Received messages:', JSON.stringify(messages, null, 2));
 
-      const result = await streamText({
-        model: openai('gpt-4-turbo'),
-        messages,
+      // Convert UIMessage[] to ModelMessage[] format
+      const modelMessages = await convertToModelMessages(messages);
+      console.log('🔄 Converted to model messages:', JSON.stringify(modelMessages, null, 2));
+
+      const result = await generateText({
+        model: v4api('gpt-5.2'),
+        messages: modelMessages,
         system: `You are a helpful AI writing assistant embedded in a word processor application. 
         You help users with:
         - Writing and editing documents
@@ -31,25 +42,13 @@ export function createAPIServer(port = 3001) {
         Be concise, helpful, and professional in your responses.`,
       });
 
-      // Set headers for SSE
-      res.setHeader('Content-Type', 'text/event-stream');
-      res.setHeader('Cache-Control', 'no-cache');
-      res.setHeader('Connection', 'keep-alive');
+      console.log('✅ Response generated:', result.text);
 
-      // Stream the response
-      const stream = result.toAIStream();
-      const reader = stream.getReader();
-      
-      try {
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          res.write(value);
-        }
-      } finally {
-        reader.releaseLock();
-        res.end();
-      }
+      // Return the complete response
+      res.json({ 
+        role: 'assistant',
+        content: result.text 
+      });
     } catch (error) {
       console.error('Chat API error:', error);
       res.status(500).json({ error: 'Failed to process chat request' });

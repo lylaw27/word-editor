@@ -5,22 +5,38 @@ import { Input } from './ui/Input';
 import { ScrollArea } from './ui/ScrollArea';
 import { cn } from '../lib/utils';
 
-interface ChatPanelProps {
-  isOpen: boolean;
-  onClose: () => void;
-}
-
 interface Message {
   id: string;
   role: 'user' | 'assistant';
   content: string;
 }
 
+interface ChatPanelProps {
+  isOpen: boolean;
+  onClose: () => void;
+}
+
 export default function ChatPanel({ isOpen, onClose }: ChatPanelProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
-  const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
+  const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Debug logging
+  useEffect(() => {
+    console.log('💬 Messages updated:', messages);
+  }, [messages]);
+
+  useEffect(() => {
+    console.log('📊 Loading state:', isLoading);
+  }, [isLoading]);
+
+  useEffect(() => {
+    if (error) {
+      console.error('❌ Chat error:', error);
+    }
+  }, [error]);
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
@@ -33,72 +49,53 @@ export default function ChatPanel({ isOpen, onClose }: ChatPanelProps) {
     e.preventDefault();
     if (!input.trim() || isLoading) return;
 
+    const messageText = input.trim();
+    setInput('');
+    setError(null);
+
+    // Add user message
     const userMessage: Message = {
       id: Date.now().toString(),
       role: 'user',
-      content: input.trim(),
+      content: messageText,
     };
-
-    setMessages((prev) => [...prev, userMessage]);
-    setInput('');
+    setMessages(prev => [...prev, userMessage]);
     setIsLoading(true);
 
     try {
+      console.log('📤 Sending message:', messageText);
+      
+      // Prepare messages in the format expected by the API
+      const apiMessages = [...messages, userMessage].map(msg => ({
+        role: msg.role,
+        parts: [{ type: 'text', text: msg.content }],
+      }));
+
       const response = await fetch('http://localhost:3001/api/chat', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          messages: [...messages, userMessage].map(({ role, content }) => ({ role, content })),
-        }),
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ messages: apiMessages }),
       });
 
-      if (!response.ok) throw new Error('Failed to get response');
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
 
-      const reader = response.body?.getReader();
-      const decoder = new TextDecoder();
-      
+      const data = await response.json();
+      console.log('📥 Received response:', data);
+
+      // Add assistant message
       const assistantMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: '',
+        content: data.content,
       };
-
-      setMessages((prev) => [...prev, assistantMessage]);
-
-      if (reader) {
-        let done = false;
-        while (!done) {
-          const { value, done: streamDone } = await reader.read();
-          done = streamDone;
-          
-          if (value) {
-            const chunk = decoder.decode(value);
-            const lines = chunk.split('\n').filter(line => line.trim());
-            
-            for (const line of lines) {
-              if (line.startsWith('0:')) {
-                const text = line.substring(2).replace(/^"|"$/g, '');
-                assistantMessage.content += text;
-                setMessages((prev) => 
-                  prev.map((msg) => 
-                    msg.id === assistantMessage.id ? { ...msg, content: assistantMessage.content } : msg
-                  )
-                );
-              }
-            }
-          }
-        }
-      }
-    } catch (error) {
-      console.error('Chat error:', error);
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: (Date.now() + 1).toString(),
-          role: 'assistant',
-          content: 'Sorry, I encountered an error. Please try again.',
-        },
-      ]);
+      setMessages(prev => [...prev, assistantMessage]);
+    } catch (err) {
+      console.error('Error sending message:', err);
+      setError(err instanceof Error ? err.message : 'Failed to send message');
     } finally {
       setIsLoading(false);
     }
@@ -141,40 +138,42 @@ export default function ChatPanel({ isOpen, onClose }: ChatPanelProps) {
           </div>
         )}
 
-        {messages.map((message) => (
-          <div
-            key={message.id}
-            className={cn(
-              "flex gap-3 animate-in fade-in slide-in-from-bottom-2 duration-300",
-              message.role === 'user' ? 'justify-end' : 'justify-start'
-            )}
-          >
-            {message.role === 'assistant' && (
-              <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center">
-                <Bot size={16} className="text-white" />
-              </div>
-            )}
-            
+        {messages.map((message) => {
+          return (
             <div
+              key={message.id}
               className={cn(
-                "max-w-[75%] rounded-2xl px-4 py-2 shadow-sm",
-                message.role === 'user'
-                  ? 'bg-blue-500 text-white rounded-tr-none'
-                  : 'bg-white text-gray-900 border border-gray-200 rounded-tl-none'
+                "flex gap-3 animate-in fade-in slide-in-from-bottom-2 duration-300",
+                message.role === 'user' ? 'justify-end' : 'justify-start'
               )}
             >
-              <p className="text-sm whitespace-pre-wrap break-words">
-                {message.content}
-              </p>
-            </div>
-
-            {message.role === 'user' && (
-              <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gradient-to-br from-gray-600 to-gray-700 flex items-center justify-center">
-                <User size={16} className="text-white" />
+              {message.role === 'assistant' && (
+                <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center">
+                  <Bot size={16} className="text-white" />
+                </div>
+              )}
+              
+              <div
+                className={cn(
+                  "max-w-[75%] rounded-2xl px-4 py-2 shadow-sm",
+                  message.role === 'user'
+                    ? 'bg-blue-500 text-white rounded-tr-none'
+                    : 'bg-white text-gray-900 border border-gray-200 rounded-tl-none'
+                )}
+              >
+                <p className="text-sm whitespace-pre-wrap break-words">
+                  {message.content}
+                </p>
               </div>
-            )}
-          </div>
-        ))}
+
+              {message.role === 'user' && (
+                <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gradient-to-br from-gray-600 to-gray-700 flex items-center justify-center">
+                  <User size={16} className="text-white" />
+                </div>
+              )}
+            </div>
+          );
+        })}
 
         {isLoading && (
           <div className="flex gap-3 justify-start">
@@ -187,6 +186,19 @@ export default function ChatPanel({ isOpen, onClose }: ChatPanelProps) {
                 <span className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></span>
                 <span className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></span>
               </div>
+            </div>
+          </div>
+        )}
+
+        {error && (
+          <div className="flex gap-3 justify-start">
+            <div className="flex-shrink-0 w-8 h-8 rounded-full bg-red-500 flex items-center justify-center">
+              <Bot size={16} className="text-white" />
+            </div>
+            <div className="bg-red-50 border border-red-200 rounded-2xl rounded-tl-none px-4 py-2 shadow-sm">
+              <p className="text-sm text-red-700">
+                Sorry, I encountered an error. Please try again.
+              </p>
             </div>
           </div>
         )}

@@ -12,6 +12,8 @@
   },
   "dependencies": {
     "@ai-sdk/openai": "^3.0.9",
+    "@ai-sdk/openai-compatible": "^2.0.18",
+    "@ai-sdk/react": "^3.0.50",
     "@tiptap/extension-bold": "^2.1.13",
     "@tiptap/extension-bullet-list": "^2.1.13",
     "@tiptap/extension-document": "^2.1.13",
@@ -26,7 +28,7 @@
     "@tiptap/pm": "^2.1.13",
     "@tiptap/react": "^2.1.13",
     "@tiptap/starter-kit": "^2.1.13",
-    "ai": "^6.0.33",
+    "ai": "^6.0.48",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cors": "^2.8.5",
