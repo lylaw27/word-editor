@@ -3,6 +3,8 @@ import { useEditor as useTiptapEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
 import { useEditor } from '../context/EditorContext';
+import { useTiptap } from '../context/TiptapContext';
+import { PersistentSelection } from '../extensions/PersistentSelection';
 import Toolbar from './Toolbar';
 
 export default function TiptapEditor() {
@@ -14,6 +16,9 @@ export default function TiptapEditor() {
     handleSaveAs,
     handleNew,
   } = useEditor();
+
+  // Get the setEditor function from TiptapContext to register our editor
+  const { setEditor: setTiptapEditor } = useTiptap();
 
   // Track the last loaded file path to avoid unnecessary reloads
   const lastLoadedPath = useRef<string | null>(null);
@@ -29,6 +34,7 @@ export default function TiptapEditor() {
       Placeholder.configure({
         placeholder: 'Start writing your document...',
       }),
+      PersistentSelection,
     ],
     content: '',
     editorProps: {
@@ -44,8 +50,22 @@ export default function TiptapEditor() {
       const words = text.trim() ? text.trim().split(/\s+/).length : 0;
       const chars = text.length;
       updateCounts(words, chars);
+      
+      // Log JSON structure (temporary)
+      console.log('Editor JSON:', editor.getJSON());
     },
   });
+
+  // Register the editor in the TiptapContext so ChatPanel can access it
+  useEffect(() => {
+    if (editor) {
+      setTiptapEditor(editor);
+    }
+    // Cleanup: remove editor reference when component unmounts
+    return () => {
+      setTiptapEditor(null);
+    };
+  }, [editor, setTiptapEditor]);
 
   // Load content when file changes
   useEffect(() => {

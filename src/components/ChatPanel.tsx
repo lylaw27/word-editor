@@ -1,15 +1,14 @@
 import { useRef, useEffect, useState, FormEvent } from 'react';
-import { X, Send, Bot, User } from 'lucide-react';
+import { X, Send, Bot, User, Trash2 } from 'lucide-react';
 import { Button } from './ui/Button';
 import { Input } from './ui/Input';
 import { ScrollArea } from './ui/ScrollArea';
 import { cn } from '../lib/utils';
-
-interface Message {
-  id: string;
-  role: 'user' | 'assistant';
-  content: string;
-}
+import { useTiptap } from '../context/TiptapContext';
+import { editorTools } from '../tools/editorTools';
+import { executeEditorTool } from '../tools/executeEditorTool';
+import { useChat } from '@ai-sdk/react';
+import { DefaultChatTransport, lastAssistantMessageIsCompleteWithToolCalls } from 'ai';
 
 interface ChatPanelProps {
   isOpen: boolean;
@@ -17,11 +16,63 @@ interface ChatPanelProps {
 }
 
 export default function ChatPanel({ isOpen, onClose }: ChatPanelProps) {
+  // Get the TipTap editor instance from context
+  const { editor } = useTiptap();
   const scrollRef = useRef<HTMLDivElement>(null);
   const [input, setInput] = useState('');
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+
+  // Use the AI SDK's useChat hook for managing chat state and streaming
+  const { messages, sendMessage, status, error, addToolOutput, setMessages } = useChat({
+    transport: new DefaultChatTransport({
+      api: 'http://localhost:3001/api/chat',
+      // Send document context with every request
+      body: () => {
+        const documentContext = editor?.getText() || '';
+        const selectedText = editor ? (() => {
+          const { from, to } = editor.state.selection;
+          return editor.state.doc.textBetween(from, to, ' ');
+        })() : '';
+        
+        return {
+          tools: editorTools, // Include tools in every request
+          context: {
+            documentText: documentContext,
+            selectedText: selectedText,
+          }
+        };
+      }
+    }),
+    // Automatically submit when all tool results are available
+    sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithToolCalls,
+    // Handle client-side tool execution
+    async onToolCall({ toolCall }) {
+      // Check if it's a dynamic tool first for proper type narrowing
+      if (toolCall.dynamic) {
+        return;
+      }
+
+      console.log('🔧 Executing client-side tool:', toolCall.toolName, toolCall.input);
+      
+      // Execute the tool in the TipTap editor
+      const result = executeEditorTool(
+        editor,
+        toolCall.toolName,
+        toolCall.input
+      );
+      
+      console.log(`Tool ${toolCall.toolName} executed:`, result);
+      
+      // Add tool output (no await to avoid deadlocks)
+      addToolOutput({
+        tool: toolCall.toolName as any,
+        toolCallId: toolCall.toolCallId,
+        output: result.result || 'Success',
+      });
+    },
+    onError: (err) => {
+      console.error('❌ Chat error:', err);
+    },
+  });
 
   // Debug logging
   useEffect(() => {
@@ -29,8 +80,8 @@ export default function ChatPanel({ isOpen, onClose }: ChatPanelProps) {
   }, [messages]);
 
   useEffect(() => {
-    console.log('📊 Loading state:', isLoading);
-  }, [isLoading]);
+    console.log('📊 Status:', status);
+  }, [status]);
 
   useEffect(() => {
     if (error) {
@@ -45,67 +96,24 @@ export default function ChatPanel({ isOpen, onClose }: ChatPanelProps) {
     }
   }, [messages]);
 
+  // Handle form submission using AI SDK's sendMessage
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    if (!input.trim() || isLoading) return;
+    if (!input.trim() || status !== 'ready') return;
 
     const messageText = input.trim();
+    console.log('📤 Sending message:', messageText);
+    
+    // Send message using AI SDK's sendMessage hook
+    sendMessage({ text: messageText });
     setInput('');
-    setError(null);
-
-    // Add user message
-    const userMessage: Message = {
-      id: Date.now().toString(),
-      role: 'user',
-      content: messageText,
-    };
-    setMessages(prev => [...prev, userMessage]);
-    setIsLoading(true);
-
-    try {
-      console.log('📤 Sending message:', messageText);
-      
-      // Prepare messages in the format expected by the API
-      const apiMessages = [...messages, userMessage].map(msg => ({
-        role: msg.role,
-        parts: [{ type: 'text', text: msg.content }],
-      }));
-
-      const response = await fetch('http://localhost:3001/api/chat', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ messages: apiMessages }),
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const data = await response.json();
-      console.log('📥 Received response:', data);
-
-      // Add assistant message
-      const assistantMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        role: 'assistant',
-        content: data.content,
-      };
-      setMessages(prev => [...prev, assistantMessage]);
-    } catch (err) {
-      console.error('Error sending message:', err);
-      setError(err instanceof Error ? err.message : 'Failed to send message');
-    } finally {
-      setIsLoading(false);
-    }
   };
 
   return (
     <div
       className={cn(
-        "fixed right-0 top-0 h-full w-96 bg-white border-l border-gray-200 shadow-2xl transform transition-transform duration-300 ease-in-out flex flex-col z-50",
-        isOpen ? "translate-x-0" : "translate-x-full"
+        "bg-white border-l border-gray-200 shadow-2xl transform transition-all duration-300 ease-in-out flex flex-col flex-shrink-0",
+        isOpen ? "w-96 translate-x-0" : "w-0 translate-x-full overflow-hidden"
       )}
     >
       {/* Header */}
@@ -114,13 +122,23 @@ export default function ChatPanel({ isOpen, onClose }: ChatPanelProps) {
           <Bot size={20} />
           <h2 className="font-semibold">AI Writing Assistant</h2>
         </div>
-        <button
-          onClick={onClose}
-          className="text-white hover:bg-blue-700 rounded p-1 transition-colors"
-          aria-label="Close chat panel"
-        >
-          <X size={20} />
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setMessages([])}
+            className="text-white hover:bg-blue-700 rounded p-1 transition-colors"
+            aria-label="Clear chat"
+            disabled={messages.length === 0}
+          >
+            <Trash2 size={18} />
+          </button>
+          <button
+            onClick={onClose}
+            className="text-white hover:bg-blue-700 rounded p-1 transition-colors"
+            aria-label="Close chat panel"
+          >
+            <X size={20} />
+          </button>
+        </div>
       </div>
 
       {/* Messages Area */}
@@ -161,9 +179,86 @@ export default function ChatPanel({ isOpen, onClose }: ChatPanelProps) {
                     : 'bg-white text-gray-900 border border-gray-200 rounded-tl-none'
                 )}
               >
-                <p className="text-sm whitespace-pre-wrap break-words">
-                  {message.content}
-                </p>
+                {/* Render message parts (AI SDK format with parts array) */}
+                {message.parts.map((part, index) => {
+                  // Render text parts
+                  if (part.type === 'text') {
+                    return (
+                      <p key={index} className="text-sm whitespace-pre-wrap break-words">
+                        {part.text}
+                      </p>
+                    );
+                  }
+
+                  // Handle typed tool parts (tool-insert_text, tool-replace_selection, etc.)
+                  // Check if part type starts with 'tool-'
+                  if (part.type == 'tool-insert_text' ||
+                      part.type == 'tool-replace_selection' ||
+                      part.type == 'tool-format_text' ||
+                      part.type == 'tool-set_heading' ||
+                      part.type == 'tool-create_list' ||
+                      part.type == 'tool-get_selected_text' ||
+                      part.type == 'tool-get_document_text') {
+                    const callId = part.toolCallId;
+                    const toolName = part.type.replace('tool-', '');
+                    
+                    switch (part.state) {
+                      case 'input-streaming':
+                        return (
+                          <div key={callId} className="mt-2 text-xs bg-blue-50 border border-blue-200 rounded-lg p-2">
+                            <div className="flex items-center gap-1 font-semibold text-blue-700">
+                              <span>🔧</span>
+                              <span>Calling: {toolName}</span>
+                            </div>
+                            <pre className="mt-1 text-blue-600 whitespace-pre-wrap break-words">
+                              {JSON.stringify(part.input, null, 2)}
+                            </pre>
+                          </div>
+                        );
+                      
+                      case 'input-available':
+                        return (
+                          <div key={callId} className="mt-2 text-xs bg-blue-50 border border-blue-200 rounded-lg p-2">
+                            <div className="flex items-center gap-1 font-semibold text-blue-700">
+                              <span>🔧</span>
+                              <span>Tool: {toolName}</span>
+                            </div>
+                            <pre className="mt-1 text-blue-600 whitespace-pre-wrap break-words">
+                              {JSON.stringify(part.input, null, 2)}
+                            </pre>
+                          </div>
+                        );
+                      
+                      case 'output-available':
+                        return (
+                          <div key={callId} className="mt-2 text-xs bg-green-50 border border-green-200 rounded-lg p-2">
+                            <div className="flex items-center gap-1 font-semibold text-green-700">
+                              <span>✓</span>
+                              <span>Result: {toolName}</span>
+                            </div>
+                            <pre className="mt-1 text-green-600 whitespace-pre-wrap break-words">
+                              {typeof part.output === 'string' 
+                                ? part.output 
+                                : JSON.stringify(part.output, null, 2)}
+                            </pre>
+                          </div>
+                        );
+                      
+                      case 'output-error':
+                        return (
+                          <div key={callId} className="mt-2 text-xs bg-red-50 border border-red-200 rounded-lg p-2">
+                            <div className="flex items-center gap-1 font-semibold text-red-700">
+                              <span>❌</span>
+                              <span>Error: {toolName}</span>
+                            </div>
+                            <p className="mt-1 text-red-600">{part.errorText}</p>
+                          </div>
+                        );
+                    }
+                  }
+
+                  return null;
+                })}
               </div>
 
               {message.role === 'user' && (
@@ -175,7 +270,7 @@ export default function ChatPanel({ isOpen, onClose }: ChatPanelProps) {
           );
         })}
 
-        {isLoading && (
+        {(status === 'submitted' || status === 'streaming') && (
           <div className="flex gap-3 justify-start">
             <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center">
               <Bot size={16} className="text-white" />
@@ -211,13 +306,13 @@ export default function ChatPanel({ isOpen, onClose }: ChatPanelProps) {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             placeholder="Ask me anything..."
-            disabled={isLoading}
+            disabled={status !== 'ready'}
             className="flex-1"
             autoFocus
           />
           <Button
             type="submit"
-            disabled={isLoading || !input.trim()}
+            disabled={status !== 'ready' || !input.trim()}
             size="icon"
             className="flex-shrink-0"
           >

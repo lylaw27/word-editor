@@ -5,14 +5,32 @@ import {
   Save,
   FilePlus,
   MessageSquare,
+  PanelLeft,
 } from 'lucide-react';
 
-export default function MenuBar({ onToggleChat }: { onToggleChat: () => void }) {
+export default function MenuBar({ 
+  onToggleChat, 
+  onToggleExplorer 
+}: { 
+  onToggleChat: () => void;
+  onToggleExplorer: () => void;
+}) {
   const { handleNew, handleOpen, currentFile, isModified } = useEditor();
 
   return (
     <div className="menu-bar titlebar-no-drag">
       <div className="flex items-center gap-2">
+        {/* Explorer Toggle */}
+        <button
+          onClick={onToggleExplorer}
+          className="menu-item flex items-center gap-2"
+          title="Toggle Explorer"
+        >
+          <PanelLeft size={16} />
+        </button>
+
+        <div className="w-px h-5 bg-gray-300" />
+
         {/* File Icon */}
         <div className="flex items-center gap-2 px-2 py-1 text-gray-600">
           <File size={16} />
