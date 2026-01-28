@@ -32,7 +32,7 @@ export const insertTextTool = tool({
  * Use when user asks to change or edit existing content
  */
 export const replaceSelectionTool = tool({
-  description: "Replace the currently selected text with new text. Use this when user asks to change or edit existing content.",
+  description: "Replace the currently selected text with new text. CRITICAL: Use this tool whenever the user asks to 'rewrite', 'fix', 'edit', 'change', 'improve', or 'rephrase' the text that is currently selected. If the user says 'rewrite this' and there is a selection, use this tool.",
   inputSchema: z.object({
     newText: z.string().describe("The new text that will replace the current selection")
   }),

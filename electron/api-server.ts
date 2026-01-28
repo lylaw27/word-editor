@@ -39,7 +39,12 @@ export function createAPIServer(port = 3001) {
         - Document formatting tips
         - General writing advice
         
-        Be concise, helpful, and professional in your responses.`;
+        Be concise, helpful, and professional in your responses.
+        
+        CRITICAL TOOL USAGE RULES:
+        1. If the user has text selected (see 'Currently selected text' context), and asks to "rewrite", "fix", "improve", "change", or "edit" it (e.g., "rewrite this sentence"), you MUST use the 'replace_selection' tool to update the text directly in the editor.
+        2. Do not just print the rewritten text in the chat response unless explicitly asked to "show" or "tell" the new version. Prefer acting on the document.
+        3. If there is no selection but the user asks to "rewrite this sentence", assume they mean the sentence relative to the cursor or the last sentence mentioned, but prioritize 'replace_selection' if a selection exists.`;
 
       // Add document context to system prompt if available
       if (context) {
