@@ -5,7 +5,6 @@ import { Input } from './ui/Input';
 import { ScrollArea } from './ui/ScrollArea';
 import { cn } from '../lib/utils';
 import { useTiptap } from '../context/TiptapContext';
-import { editorTools } from '../tools/editorTools';
 import { executeEditorTool } from '../tools/executeEditorTool';
 import { useChat } from '@ai-sdk/react';
 import { DefaultChatTransport, lastAssistantMessageIsCompleteWithToolCalls } from 'ai';
@@ -14,6 +13,7 @@ interface ChatPanelProps {
   isOpen: boolean;
   onClose: () => void;
 }
+
 
 export default function ChatPanel({ isOpen, onClose }: ChatPanelProps) {
   // Get the TipTap editor instance from context
@@ -25,26 +25,12 @@ export default function ChatPanel({ isOpen, onClose }: ChatPanelProps) {
   const { messages, sendMessage, status, error, addToolOutput, setMessages } = useChat({
     transport: new DefaultChatTransport({
       api: 'http://localhost:3001/api/chat',
-      // Send document context with every request
-      body: () => {
-        const documentContext = editor?.getText() || '';
-        const selectedText = editor ? (() => {
-          const { from, to } = editor.state.selection;
-          return editor.state.doc.textBetween(from, to, ' ');
-        })() : '';
-        
-        return {
-          tools: editorTools, // Include tools in every request
-          context: {
-            documentText: documentContext,
-            selectedText: selectedText,
-          }
-        };
-      }
     }),
+    // Tool definitions are server-side, but execution happens here client-side
+    // No need to send tool schemas - just handle execution when LLM calls them
     // Automatically submit when all tool results are available
     sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithToolCalls,
-    // Handle client-side tool execution
+    // Handle client-side tool execution (only editTool - readTool runs on backend)
     async onToolCall({ toolCall }) {
       // Check if it's a dynamic tool first for proper type narrowing
       if (toolCall.dynamic) {
@@ -53,8 +39,14 @@ export default function ChatPanel({ isOpen, onClose }: ChatPanelProps) {
 
       console.log('🔧 Executing client-side tool:', toolCall.toolName, toolCall.input);
       
+      // Only execute editTool on client - retrievalTool is handled by backend
+      if (toolCall.toolName !== 'editTool') {
+        console.log('⏭️  Skipping - tool runs on backend');
+        return;
+      }
+
       // Execute the tool in the TipTap editor
-      const result = executeEditorTool(
+      const result = await executeEditorTool(
         editor,
         toolCall.toolName,
         toolCall.input
@@ -104,8 +96,41 @@ export default function ChatPanel({ isOpen, onClose }: ChatPanelProps) {
     const messageText = input.trim();
     console.log('📤 Sending message:', messageText);
     
-    // Send message using AI SDK's sendMessage hook
-    sendMessage({ text: messageText });
+    // Extract current document context
+    const context = editor ? (() => {
+      const documentHtml = editor.getHTML();
+      const documentText = editor.getText();
+      const { from, to } = editor.state.selection;
+      const hasSelection = from !== to;
+
+      // Get selection data if exists
+      const selection = hasSelection ? {
+        from,
+        to,
+        text: editor.state.doc.textBetween(from, to, ' '),
+      } : undefined;
+
+      // Calculate statistics
+      const stats = {
+        characters: documentText.length,
+        words: documentText.split(/\s+/).filter(w => w.length > 0).length,
+      };
+
+      return {
+        documentHtml,
+        documentText,
+        stats,
+        selection,
+      };
+    })() : null;
+
+    // Send message with context data
+    sendMessage({ 
+      text: messageText 
+    }, {
+      body: { context } // Pass context in the request body
+    });
+    
     setInput('');
   };
 
@@ -190,15 +215,12 @@ export default function ChatPanel({ isOpen, onClose }: ChatPanelProps) {
                     );
                   }
 
-                  // Handle typed tool parts (tool-insert_text, tool-replace_selection, etc.)
+                  // Handle typed tool parts (tool-editTool, tool-retrievalTool, etc.)
                   // Check if part type starts with 'tool-'
-                  if (part.type == 'tool-insert_text' ||
-                      part.type == 'tool-replace_selection' ||
-                      part.type == 'tool-format_text' ||
-                      part.type == 'tool-set_heading' ||
-                      part.type == 'tool-create_list' ||
-                      part.type == 'tool-get_selected_text' ||
-                      part.type == 'tool-get_document_text') {
+                  if (part.type == 'tool-editTool' ||
+                      part.type == 'tool-retrievalTool' ||
+                      part.type == 'tool-webSearch' ||
+                      part.type == 'tool-webExtract') {
                     const callId = part.toolCallId;
                     const toolName = part.type.replace('tool-', '');
                     

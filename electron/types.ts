@@ -28,6 +28,19 @@ export interface FileFilters {
   docx: FileFilter[];
 }
 
+// Directory item for file explorer
+export interface DirectoryItem {
+  name: string;
+  path: string;
+  isDirectory: boolean;
+  extension?: string;
+}
+
+export interface DirectoryContents {
+  items: DirectoryItem[];
+  path: string;
+}
+
 // The API exposed to the renderer via contextBridge
 export interface ElectronAPI {
   // File operations
@@ -37,6 +50,13 @@ export interface ElectronAPI {
   newFile: () => Promise<void>;
   getCurrentPath: () => Promise<string | null>;
   setCurrentPath: (filePath: string | null) => Promise<void>;
+  
+  // Directory operations
+  readDirectory: (dirPath: string) => Promise<DirectoryContents>;
+  openFileByPath: (filePath: string) => Promise<FileData | null>;
+  
+  // Embedding operations
+  selectPDFFile: () => Promise<string | null>;
 
   // Menu event listeners (return cleanup functions)
   onMenuNew: (callback: () => void) => () => void;

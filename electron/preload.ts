@@ -28,6 +28,20 @@ const electronAPI: ElectronAPI = {
     return ipcRenderer.invoke('file:setCurrentPath', filePath);
   },
 
+  // Directory operations
+  readDirectory: (dirPath: string) => {
+    return ipcRenderer.invoke('directory:read', dirPath);
+  },
+
+  openFileByPath: (filePath: string): Promise<FileData | null> => {
+    return ipcRenderer.invoke('file:openByPath', filePath);
+  },
+
+  // Embedding operations
+  selectPDFFile: (): Promise<string | null> => {
+    return ipcRenderer.invoke('dialog:selectPDF');
+  },
+
   // Menu event listeners
   onMenuNew: (callback: () => void): (() => void) => {
     const handler = (_event: IpcRendererEvent) => callback();

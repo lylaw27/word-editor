@@ -17,7 +17,7 @@ export default defineConfig({
           build: {
             outDir: 'dist-electron',
             rollupOptions: {
-              external: ['electron', 'mammoth', 'html-to-docx'],
+              external: ['electron', 'mammoth', 'html-to-docx', 'pdf-parse', 'openai', 'convex'],
             },
           },
         },

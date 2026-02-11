@@ -7,6 +7,7 @@ import {
   MessageSquare,
   PanelLeft,
 } from 'lucide-react';
+import EmbedDropdown from './EmbedDropdown';
 
 export default function MenuBar({ 
   onToggleChat, 
@@ -76,6 +77,11 @@ export default function MenuBar({
         <div className="text-xs text-gray-400 truncate max-w-md">
           {currentFile?.filePath || 'No file open'}
         </div>
+        
+        <div className="w-px h-5 bg-gray-300" />
+
+        {/* Embed Documents */}
+        <EmbedDropdown />
         
         <div className="w-px h-5 bg-gray-300" />
         

@@ -1,11 +1,25 @@
-import { useEffect, useCallback, useRef } from 'react';
+import { useEffect, useCallback, useRef, useState } from 'react';
 import { useEditor as useTiptapEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
+import Underline from '@tiptap/extension-underline';
+import Strike from '@tiptap/extension-strike';
+import Code from '@tiptap/extension-code';
+import CodeBlock from '@tiptap/extension-code-block';
+import Blockquote from '@tiptap/extension-blockquote';
+import HorizontalRule from '@tiptap/extension-horizontal-rule';
+import TextAlign from '@tiptap/extension-text-align';
+import Highlight from '@tiptap/extension-highlight';
+import { TextStyle } from '@tiptap/extension-text-style';
+import { Color } from '@tiptap/extension-color';
+import { FontFamily } from '@tiptap/extension-font-family';
+import { FontSize } from '../extensions/FontSize';
 import { useEditor } from '../context/EditorContext';
 import { useTiptap } from '../context/TiptapContext';
 import { PersistentSelection } from '../extensions/PersistentSelection';
 import Toolbar from './Toolbar';
+import ChangeReviewOverlay from './ChangeReviewOverlay';
+import { hasTrackedChanges, acceptAllChanges, rejectAllChanges } from '../utils/changeTracking';
 
 export default function TiptapEditor() {
   const {
@@ -22,6 +36,9 @@ export default function TiptapEditor() {
 
   // Track the last loaded file path to avoid unnecessary reloads
   const lastLoadedPath = useRef<string | null>(null);
+  
+  // Track whether to show the change review overlay
+  const [showChangeOverlay, setShowChangeOverlay] = useState(false);
 
   // Initialize TipTap editor
   const editor = useTiptapEditor({
@@ -34,6 +51,22 @@ export default function TiptapEditor() {
       Placeholder.configure({
         placeholder: 'Start writing your document...',
       }),
+      Underline,
+      Strike,
+      Code,
+      CodeBlock,
+      Blockquote,
+      HorizontalRule,
+      TextAlign.configure({
+        types: ['heading', 'paragraph'],
+      }),
+      Highlight.configure({
+        multicolor: true,
+      }),
+      TextStyle,
+      Color,
+      FontFamily,
+      FontSize,
       PersistentSelection,
     ],
     content: '',
@@ -50,6 +83,16 @@ export default function TiptapEditor() {
       const words = text.trim() ? text.trim().split(/\s+/).length : 0;
       const chars = text.length;
       updateCounts(words, chars);
+      
+      // Check if there are tracked changes and show overlay
+      // Check both HTML and JSON to catch all change tracking methods
+      const html = editor.getHTML();
+      const json = editor.getJSON();
+      if (hasTrackedChanges(html) || hasTrackedChanges(json)) {
+        setShowChangeOverlay(true);
+      } else {
+        setShowChangeOverlay(false);
+      }
       
       // Log JSON structure (temporary)
       console.log('Editor JSON:', editor.getJSON());
@@ -159,6 +202,20 @@ export default function TiptapEditor() {
     );
   }
 
+  const handleAcceptChanges = () => {
+    const currentHTML = editor.getHTML();
+    const cleanHTML = acceptAllChanges(currentHTML);
+    editor.commands.setContent(cleanHTML);
+    setShowChangeOverlay(false);
+  };
+
+  const handleRejectChanges = () => {
+    const currentHTML = editor.getHTML();
+    const originalHTML = rejectAllChanges(currentHTML);
+    editor.commands.setContent(originalHTML);
+    setShowChangeOverlay(false);
+  };
+
   return (
     <div className="editor-wrapper">
       <Toolbar editor={editor} onSave={() => {
@@ -166,6 +223,17 @@ export default function TiptapEditor() {
         handleSave(text, html);
       }} />
       <EditorContent editor={editor} />
+      
+      {/* Change Review Overlay */}
+      {showChangeOverlay && (
+        <ChangeReviewOverlay
+          editor={editor}
+          html={editor.getHTML()}
+          onAccept={handleAcceptChanges}
+          onReject={handleRejectChanges}
+          onClose={() => setShowChangeOverlay(false)}
+        />
+      )}
     </div>
   );
 }

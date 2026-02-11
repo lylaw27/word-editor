@@ -2,7 +2,7 @@ import { app, BrowserWindow, ipcMain, dialog, Menu } from 'electron';
 import * as path from 'path';
 import * as fs from 'fs';
 import mammoth from 'mammoth';
-import HTMLtoDOCX from 'html-to-docx';
+// import HTMLtoDOCX from 'html-to-docx';
 import { FileData, SaveResult, FileFilters } from './types';
 import { createAPIServer } from './api-server';
 
@@ -224,14 +224,19 @@ async function saveFile(
     const ext = path.extname(filePath).toLowerCase();
 
     if (ext === '.docx') {
+      // TODO: Fix HTMLtoDOCX import issue
+      return {
+        success: false,
+        error: 'DOCX saving temporarily disabled',
+      };
       // Convert HTML to DOCX
-      const docxBuffer = await HTMLtoDOCX(htmlContent, null, {
-        table: { row: { cantSplit: true } },
-        footer: true,
-        pageNumber: true,
-      });
-      
-      fs.writeFileSync(filePath, Buffer.from(docxBuffer as ArrayBuffer));
+      // const docxBuffer = await HTMLtoDOCX(htmlContent, null, {
+      //   table: { row: { cantSplit: true } },
+      //   footer: true,
+      //   pageNumber: true,
+      // });
+      // 
+      // fs.writeFileSync(filePath, Buffer.from(docxBuffer as ArrayBuffer));
     } else {
       // Save as plain text (txt or md)
       fs.writeFileSync(filePath, content, 'utf-8');
@@ -327,10 +332,73 @@ ipcMain.handle('file:setCurrentPath', (_event, filePath: string | null): void =>
   currentFilePath = filePath;
 });
 
+ipcMain.handle('directory:read', async (_event, dirPath: string) => {
+  try {
+    const items = fs.readdirSync(dirPath, { withFileTypes: true });
+    
+    const directoryItems = items
+      .filter(item => {
+        if (item.isDirectory()) return true;
+        // Filter for .docx and .pdf files
+        const ext = path.extname(item.name).toLowerCase();
+        return ext === '.docx' || ext === '.pdf';
+      })
+      .map(item => ({
+        name: item.name,
+        path: path.join(dirPath, item.name),
+        isDirectory: item.isDirectory(),
+        extension: item.isDirectory() ? undefined : path.extname(item.name).toLowerCase(),
+      }))
+      .sort((a, b) => {
+        // Directories first, then alphabetically
+        if (a.isDirectory && !b.isDirectory) return -1;
+        if (!a.isDirectory && b.isDirectory) return 1;
+        return a.name.localeCompare(b.name);
+      });
+    
+    return {
+      items: directoryItems,
+      path: dirPath,
+    };
+  } catch (error) {
+    console.error('Error reading directory:', error);
+    return {
+      items: [],
+      path: dirPath,
+    };
+  }
+});
+
+ipcMain.handle('file:openByPath', async (_event, filePath: string): Promise<FileData | null> => {
+  const fileData = await readFile(filePath);
+  
+  if (fileData && mainWindow) {
+    currentFilePath = filePath;
+    mainWindow.webContents.send('file-opened', fileData);
+  }
+  
+  return fileData;
+});
+
+ipcMain.handle('dialog:selectPDF', async (): Promise<string | null> => {
+  if (!mainWindow) return null;
+
+  const result = await dialog.showOpenDialog(mainWindow, {
+    properties: ['openFile'],
+    filters: [{ name: 'PDF Documents', extensions: ['pdf'] }],
+  });
+
+  if (result.canceled || result.filePaths.length === 0) return null;
+
+  return result.filePaths[0];
+});
+
 // App lifecycle events
 app.whenReady().then(() => {
-  // Start API server
-  apiServer = createAPIServer(3001);
+  // Start API server only if not already running
+  if (!apiServer) {
+    apiServer = createAPIServer(3001);
+  }
   
   createWindow();
 

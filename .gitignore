@@ -29,3 +29,7 @@ yarn-error.log*
 
 # TypeScript
 *.tsbuildinfo
+
+
+# Authentication tokens
+.npmrc

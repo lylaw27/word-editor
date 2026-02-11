@@ -29,13 +29,14 @@ interface ToolExecutionResult {
  * @param editor - The TipTap editor instance
  * @param toolName - The name of the tool to execute
  * @param parameters - The parameters passed to the tool (from AI)
+ * @param onContextUpdate - Optional callback to update context with retrieved documents
  * @returns Result of the tool execution
  */
 export function executeEditorTool(
   editor: Editor | null,
   toolName: string,
   parameters: any
-): ToolExecutionResult {
+): ToolExecutionResult | Promise<ToolExecutionResult> {
   // Safety check: make sure we have an editor instance
   if (!editor) {
     return { 
@@ -46,75 +47,80 @@ export function executeEditorTool(
 
   try {
     switch (toolName) {
-      // Insert text at cursor position
-      case 'insert_text':
-        editor.commands.insertContent(parameters.text);
-        return { success: true };
-
-      // Replace currently selected text
-      case 'replace_selection':
-        // First delete the selection, then insert new text
-        editor.chain()
-          .focus()
-          .deleteSelection()
-          .insertContent(parameters.newText)
-          .run();
-        return { success: true };
-
-      // Apply formatting to selected text
-      case 'format_text':
-        switch (parameters.format) {
-          case 'bold':
-            editor.chain().focus().toggleBold().run();
-            break;
-          case 'italic':
-            editor.chain().focus().toggleItalic().run();
-            break;
-          case 'underline':
-            // Note: You may need to add the Underline extension to TipTap
-            // editor.chain().focus().toggleUnderline().run();
-            console.warn('Underline not yet implemented');
-            break;
-          case 'strikethrough':
-            editor.chain().focus().toggleStrike().run();
-            break;
+      // Execute HTML search-and-replace edit
+      case 'editTool':
+        if (!parameters.edits || !Array.isArray(parameters.edits)) {
+          return {
+            success: false,
+            error: 'Invalid edits parameter: expected array of {oldHtml, newHtml} operations'
+          };
         }
-        return { success: true };
 
-      // Convert current paragraph to heading
-      case 'set_heading':
-        // Convert string to number for heading level
-        const level = parseInt(parameters.level) as 1 | 2 | 3;
-        editor.chain()
-          .focus()
-          .setHeading({ level })
-          .run();
-        return { success: true };
+        const results: { success: boolean; error?: string }[] = [];
+        let successCount = 0;
+        let failCount = 0;
 
-      // Create a list (bullet or numbered)
-      case 'create_list':
-        if (parameters.type === 'bullet') {
-          editor.chain().focus().toggleBulletList().run();
-        } else if (parameters.type === 'ordered') {
-          editor.chain().focus().toggleOrderedList().run();
+        // Get the current document HTML
+        let currentHtml = editor.getHTML();
+
+        // Apply each search-and-replace operation sequentially
+        for (const edit of parameters.edits) {
+          const { oldHtml, newHtml } = edit;
+
+          if (oldHtml === undefined || newHtml === undefined) {
+            results.push({
+              success: false,
+              error: 'oldHtml and newHtml are required'
+            });
+            failCount++;
+            continue;
+          }
+
+          try {
+            if (oldHtml === '') {
+              // Empty oldHtml means append newHtml at the end
+              currentHtml += newHtml;
+              results.push({ success: true });
+              successCount++;
+            } else if (currentHtml.includes(oldHtml)) {
+              currentHtml = currentHtml.replace(oldHtml, newHtml);
+              results.push({ success: true });
+              successCount++;
+            } else {
+              results.push({
+                success: false,
+                error: `Could not find oldHtml in document: "${oldHtml.substring(0, 80)}..."`
+              });
+              failCount++;
+            }
+          } catch (error) {
+            results.push({
+              success: false,
+              error: error instanceof Error ? error.message : 'Unknown error'
+            });
+            failCount++;
+          }
         }
-        return { success: true };
 
-      // Get selected text from the editor
-      case 'get_selected_text':
-        const { from, to } = editor.state.selection;
-        const selectedText = editor.state.doc.textBetween(from, to, ' ');
-        return { 
-          success: true, 
-          result: selectedText 
-        };
+        // Apply the final HTML to the editor
+        if (successCount > 0) {
+          try {
+            editor.commands.setContent(currentHtml);
+          } catch (error) {
+            return {
+              success: false,
+              error: `Failed to apply changes: ${error instanceof Error ? error.message : 'Unknown error'}`
+            };
+          }
+        }
 
-      // Get all document text
-      case 'get_document_text':
-        const fullText = editor.state.doc.textContent;
-        return { 
-          success: true, 
-          result: fullText 
+        return {
+          success: successCount > 0,
+          result: {
+            message: `Applied ${successCount} edit(s), ${failCount} failed`,
+            details: results,
+            reasoning: parameters.reasoning
+          }
         };
 
       // Unknown tool requested
