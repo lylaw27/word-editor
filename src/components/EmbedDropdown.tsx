@@ -1,6 +1,8 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { Database, Upload, FileText, CheckCircle, AlertCircle, Loader2, X, ChevronDown, Trash2 } from 'lucide-react';
 import { cn } from '../lib/utils';
+import { isElectron } from '../utils/platform';
+import { selectPDFFile } from '../api/filesystem';
 
 type EmbedStatus = 'idle' | 'uploading' | 'processing' | 'done' | 'error';
 
@@ -49,7 +51,7 @@ export default function EmbedDropdown() {
 
   const loadDocuments = async () => {
     try {
-      const response = await fetch('http://localhost:3001/api/embed/documents');
+      const response = await fetch('/api/embed/documents');
       if (response.ok) {
         const docs = await response.json();
         setDocuments(docs);
@@ -59,19 +61,30 @@ export default function EmbedDropdown() {
     }
   };
 
-  const processFile = useCallback(async (filePath: string) => {
+  const processFile = useCallback(async (filePathOrBlob: string | File) => {
     setStatus('processing');
     setError(null);
     setProgress({ stage: 'extracting', message: 'Processing PDF...', progress: 10 });
 
     try {
+      let response: Response;
 
-      // Call the backend embed API with SSE
-      const response = await fetch('http://localhost:3001/api/embed', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ filePath }),
-      });
+      if (typeof filePathOrBlob === 'string') {
+        // Electron path-based upload
+        response = await fetch('/api/embed', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ filePath: filePathOrBlob }),
+        });
+      } else {
+        // Web: upload file blob via FormData
+        const formData = new FormData();
+        formData.append('file', filePathOrBlob);
+        response = await fetch('/api/embed', {
+          method: 'POST',
+          body: formData,
+        });
+      }
 
       if (!response.ok) {
         const err = await response.json();
@@ -161,13 +174,18 @@ export default function EmbedDropdown() {
     );
 
     if (pdfFile) {
-      // Get file path from dropped file
-      const filePath = (pdfFile as any).path;
-      if (filePath && filePath.toLowerCase().endsWith('.pdf')) {
-        processFile(filePath);
+      if (isElectron()) {
+        // Electron: use native file path
+        const filePath = (pdfFile as any).path;
+        if (filePath && filePath.toLowerCase().endsWith('.pdf')) {
+          processFile(filePath);
+        } else {
+          setError('Could not access file path.');
+          setStatus('error');
+        }
       } else {
-        setError('Could not access file path.');
-        setStatus('error');
+        // Web: upload the file blob directly
+        processFile(pdfFile);
       }
     } else {
       setError('Please drop a PDF file.');
@@ -176,9 +194,23 @@ export default function EmbedDropdown() {
   }, [processFile]);
 
   const handleFileSelect = useCallback(async () => {
-    const filePath = await window.electronAPI.selectPDFFile();
-    if (filePath) {
-      processFile(filePath);
+    if (isElectron()) {
+      const filePath = await selectPDFFile();
+      if (filePath) {
+        processFile(filePath);
+      }
+    } else {
+      // Web: use file input picker
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = '.pdf';
+      input.onchange = (e) => {
+        const file = (e.target as HTMLInputElement).files?.[0];
+        if (file) {
+          processFile(file);
+        }
+      };
+      input.click();
     }
   }, [processFile]);
 
@@ -190,7 +222,7 @@ export default function EmbedDropdown() {
 
   const handleDeleteDocument = async (docId: string) => {
     try {
-      await fetch(`http://localhost:3001/api/embed/documents/${docId}`, {
+      await fetch(`/api/embed/documents/${docId}`, {
         method: 'DELETE',
       });
       loadDocuments();

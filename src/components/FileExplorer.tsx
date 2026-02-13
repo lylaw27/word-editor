@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { ChevronRight, ChevronDown, File, Folder, FolderOpen, FileText } from 'lucide-react';
 import { useEditor } from '../context/EditorContext';
 import { cn } from '../lib/utils';
+import { isElectron } from '../utils/platform';
+import { readDirectory, openFileByPath } from '../api/filesystem';
 import * as path from 'path-browserify';
 
 interface FileExplorerProps {
@@ -24,7 +26,7 @@ export default function FileExplorer({ isOpen }: FileExplorerProps) {
   // Load directory contents
   const loadDirectory = async (dirPath: string, targetPath?: string) => {
     try {
-      const result = await window.electronAPI.readDirectory(dirPath);
+      const result = await readDirectory(dirPath);
       
       const items: DirectoryItem[] = result.items.map(item => ({
         name: item.name,
@@ -100,7 +102,7 @@ export default function FileExplorer({ isOpen }: FileExplorerProps) {
   const handleFileClick = async (item: DirectoryItem) => {
     if (!item.isDirectory && (item.extension === '.docx' || item.extension === '.pdf')) {
       try {
-        await window.electronAPI.openFileByPath(item.path);
+        await openFileByPath(item.path);
         // The file will be opened via the onFileOpened listener in EditorContext
       } catch (error) {
         console.error('Error opening file:', error);
@@ -180,7 +182,14 @@ export default function FileExplorer({ isOpen }: FileExplorerProps) {
 
       {/* Directory Tree */}
       <div className="flex-1 overflow-y-auto p-2">
-        {directoryTree.length === 0 ? (
+        {!isElectron() ? (
+          <div className="flex flex-col items-center justify-center h-32 text-center px-4">
+            <Folder size={32} className="text-gray-400 mb-2" />
+            <p className="text-xs text-gray-500">
+              File explorer is not available in web mode
+            </p>
+          </div>
+        ) : directoryTree.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-32 text-center px-4">
             <Folder size={32} className="text-gray-400 mb-2" />
             <p className="text-xs text-gray-500">

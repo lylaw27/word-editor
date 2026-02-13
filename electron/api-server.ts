@@ -1,6 +1,8 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import multer from 'multer';
+import * as os from 'os';
 import * as path from 'path';
 import * as fs from 'fs';
 import { streamText, convertToModelMessages, type UIMessage, stepCountIs } from 'ai';
@@ -144,18 +146,31 @@ Respond conversationally without tools only when:
     }
   });
 
-  app.post('/api/embed', async (req, res) => {
-    console.log('🔔 /api/embed request received');
-    try {
-      const { filePath, convexUrl, convexToken } = req.body as {
-        filePath: string;
-        convexUrl?: string;
-        convexToken?: string;
-      };
+  // Multer config for web file uploads (temp directory)
+  const upload = multer({ dest: path.join(os.tmpdir(), 'word-editor-uploads') });
 
-      if (!filePath || !fs.existsSync(filePath)) {
-        res.status(400).json({ error: 'Invalid file path' });
-        return;
+  app.post('/api/embed', upload.single('file'), async (req, res) => {
+    console.log('🔔 /api/embed request received');
+    let tempFilePath: string | null = null;
+    try {
+      let filePath: string;
+
+      if (req.file) {
+        // Web upload: file came via FormData
+        tempFilePath = req.file.path;
+        // Rename to have .pdf extension so pdf-parse works
+        const pdfPath = tempFilePath + '.pdf';
+        fs.renameSync(tempFilePath, pdfPath);
+        tempFilePath = pdfPath;
+        filePath = pdfPath;
+      } else {
+        // Electron: file path in JSON body
+        const body = req.body as { filePath?: string };
+        if (!body.filePath || !fs.existsSync(body.filePath)) {
+          res.status(400).json({ error: 'Invalid file path' });
+          return;
+        }
+        filePath = body.filePath;
       }
 
       const ext = path.extname(filePath).toLowerCase();
@@ -164,7 +179,7 @@ Respond conversationally without tools only when:
         return;
       }
 
-      const fileName = path.basename(filePath);
+      const fileName = req.file?.originalname || path.basename(filePath);
       const fileSize = fs.statSync(filePath).size;
 
       // Set up SSE for progress updates
@@ -244,6 +259,11 @@ Respond conversationally without tools only when:
         res.end();
       } else {
         res.status(500).json({ error: error.message || 'Failed to process document' });
+      }
+    } finally {
+      // Clean up temp file from web uploads
+      if (tempFilePath && fs.existsSync(tempFilePath)) {
+        try { fs.unlinkSync(tempFilePath); } catch {}
       }
     }
   });

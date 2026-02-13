@@ -20,6 +20,7 @@ import { PersistentSelection } from '../extensions/PersistentSelection';
 import Toolbar from './Toolbar';
 import ChangeReviewOverlay from './ChangeReviewOverlay';
 import { hasTrackedChanges, acceptAllChanges, rejectAllChanges } from '../utils/changeTracking';
+import * as FileSystemAPI from '../api/filesystem';
 
 export default function TiptapEditor() {
   const {
@@ -163,25 +164,25 @@ export default function TiptapEditor() {
 
   // Handle menu events
   useEffect(() => {
-    const cleanupNew = window.electronAPI.onMenuNew(() => {
+    const cleanupNew = FileSystemAPI.onMenuNew(() => {
       handleNew();
     });
 
-    const cleanupSave = window.electronAPI.onMenuSave(() => {
+    const cleanupSave = FileSystemAPI.onMenuSave(() => {
       const { text, html } = getContent();
       handleSave(text, html);
     });
 
-    const cleanupSaveAs = window.electronAPI.onMenuSaveAs(() => {
+    const cleanupSaveAs = FileSystemAPI.onMenuSaveAs(() => {
       const { text, html } = getContent();
       handleSaveAs(text, html);
     });
 
-    const cleanupUndo = window.electronAPI.onMenuUndo(() => {
+    const cleanupUndo = FileSystemAPI.onMenuUndo(() => {
       editor?.commands.undo();
     });
 
-    const cleanupRedo = window.electronAPI.onMenuRedo(() => {
+    const cleanupRedo = FileSystemAPI.onMenuRedo(() => {
       editor?.commands.redo();
     });
 

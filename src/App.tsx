@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useEditor } from './context/EditorContext';
+import { isElectron } from './utils/platform';
 import MenuBar from './components/MenuBar';
 import TiptapEditor from './components/TiptapEditor';
 import StatusBar from './components/StatusBar';
@@ -13,12 +14,14 @@ function App() {
 
   return (
     <div className="app-container bg-gray-100">
-      {/* Titlebar drag region for macOS */}
-      <div className="titlebar-drag-region h-7 bg-gray-50 border-b border-gray-200 flex items-center justify-center">
-        <span className="text-xs text-gray-500 font-medium">
-          {currentFile ? currentFile.fileName : 'Untitled'} — Word Editor
-        </span>
-      </div>
+      {/* Titlebar drag region for macOS Electron */}
+      {isElectron() && (
+        <div className="titlebar-drag-region h-7 bg-gray-50 border-b border-gray-200 flex items-center justify-center">
+          <span className="text-xs text-gray-500 font-medium">
+            {currentFile ? currentFile.fileName : 'Untitled'} — Word Editor
+          </span>
+        </div>
+      )}
 
       {/* Menu Bar */}
       <MenuBar 

@@ -24,7 +24,7 @@ export default function ChatPanel({ isOpen, onClose }: ChatPanelProps) {
   // Use the AI SDK's useChat hook for managing chat state and streaming
   const { messages, sendMessage, status, error, addToolOutput, setMessages } = useChat({
     transport: new DefaultChatTransport({
-      api: 'http://localhost:3001/api/chat',
+      api: '/api/chat',
     }),
     // Tool definitions are server-side, but execution happens here client-side
     // No need to send tool schemas - just handle execution when LLM calls them

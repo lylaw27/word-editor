@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useCallback, useEffect, ReactNode } from 'react';
 import type { FileData, EditorContextValue } from '../../electron/types';
+import * as FileSystemAPI from '../api/filesystem';
 
 const EditorContext = createContext<EditorContextValue | undefined>(undefined);
 
@@ -22,7 +23,7 @@ export function EditorProvider({ children }: EditorProviderProps) {
   // Handle creating a new file
   const handleNew = useCallback(async () => {
     // In a real app, you might want to prompt to save first if modified
-    await window.electronAPI.newFile();
+    await FileSystemAPI.newFile();
     setCurrentFile(null);
     setIsModified(false);
     setWordCount(0);
@@ -31,7 +32,7 @@ export function EditorProvider({ children }: EditorProviderProps) {
 
   // Handle opening a file
   const handleOpen = useCallback(async () => {
-    const fileData = await window.electronAPI.openFile();
+    const fileData = await FileSystemAPI.openFile();
     if (fileData) {
       setCurrentFile(fileData);
       setIsModified(false);
@@ -40,17 +41,17 @@ export function EditorProvider({ children }: EditorProviderProps) {
 
   // Handle saving the current file
   const handleSave = useCallback(async (content: string, htmlContent: string) => {
-    const result = await window.electronAPI.saveFile(
+    const result = await FileSystemAPI.saveFile(
       content,
       htmlContent,
       currentFile?.fileName
     );
-    
+
     if (result.success && result.filePath && result.fileName) {
       // Determine file type from extension
       const ext = result.filePath.split('.').pop()?.toLowerCase() || 'txt';
       const fileType = ext === 'docx' ? 'docx' : ext === 'md' ? 'md' : 'txt';
-      
+
       // Always store HTML content in state to preserve formatting
       setCurrentFile({
         content: htmlContent,
@@ -65,17 +66,17 @@ export function EditorProvider({ children }: EditorProviderProps) {
 
   // Handle save as
   const handleSaveAs = useCallback(async (content: string, htmlContent: string) => {
-    const result = await window.electronAPI.saveFileAs(
+    const result = await FileSystemAPI.saveFileAs(
       content,
       htmlContent,
       currentFile?.fileName
     );
-    
+
     if (result.success && result.filePath && result.fileName) {
       // Determine file type from extension
       const ext = result.filePath.split('.').pop()?.toLowerCase() || 'txt';
       const fileType = ext === 'docx' ? 'docx' : ext === 'md' ? 'md' : 'txt';
-      
+
       // Always store HTML content in state to preserve formatting
       setCurrentFile({
         content: htmlContent,
@@ -90,7 +91,7 @@ export function EditorProvider({ children }: EditorProviderProps) {
 
   // Listen for file opened from main process menu
   useEffect(() => {
-    const cleanup = window.electronAPI.onFileOpened((fileData: FileData) => {
+    const cleanup = FileSystemAPI.onFileOpened((fileData: FileData) => {
       setCurrentFile(fileData);
       setIsModified(false);
     });
