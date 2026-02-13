@@ -1,9 +1,11 @@
+'use client';
+
 import { useEffect, useState } from 'react';
 import { ChevronRight, ChevronDown, File, Folder, FolderOpen, FileText } from 'lucide-react';
 import { useEditor } from '../context/EditorContext';
 import { cn } from '../lib/utils';
 import { isElectron } from '../utils/platform';
-import { readDirectory, openFileByPath } from '../api/filesystem';
+import { readDirectory, openFileByPath } from '../../app/api/chat/filesystem';
 import * as path from 'path-browserify';
 
 interface FileExplorerProps {

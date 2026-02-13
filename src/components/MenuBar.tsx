@@ -1,3 +1,5 @@
+'use client';
+
 import { useEditor } from '../context/EditorContext';
 import {
   File,

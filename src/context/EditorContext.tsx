@@ -1,6 +1,8 @@
+'use client';
+
 import React, { createContext, useContext, useState, useCallback, useEffect, ReactNode } from 'react';
 import type { FileData, EditorContextValue } from '../../electron/types';
-import * as FileSystemAPI from '../api/filesystem';
+import * as FileSystemAPI from '../../app/api/chat/filesystem';
 
 const EditorContext = createContext<EditorContextValue | undefined>(undefined);
 

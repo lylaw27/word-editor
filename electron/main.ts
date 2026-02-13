@@ -1,10 +1,15 @@
 import { app, BrowserWindow, ipcMain, dialog, Menu } from 'electron';
 import * as path from 'path';
 import * as fs from 'fs';
+import isDev from 'electron-is-dev';
+import serve from 'electron-serve';
 import mammoth from 'mammoth';
 // import HTMLtoDOCX from 'html-to-docx';
 import { FileData, SaveResult, FileFilters } from './types';
-import { createAPIServer } from './api-server';
+import { createAPIServer } from '../src/api/chat';
+
+// Setup serve for production builds
+const loadURL = serve({ directory: 'out' });
 
 let mainWindow: BrowserWindow | null = null;
 let currentFilePath: string | null = null;
@@ -23,7 +28,7 @@ const fileFilters: FileFilters = {
   docx: [{ name: 'Word Documents', extensions: ['docx'] }],
 };
 
-function createWindow(): void {
+async function createWindow(): Promise<void> {
   mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
@@ -40,11 +45,11 @@ function createWindow(): void {
   });
 
   // Load the app
-  if (process.env.NODE_ENV === 'development' || process.env.VITE_DEV_SERVER_URL) {
-    mainWindow.loadURL(process.env.VITE_DEV_SERVER_URL || 'http://localhost:5173');
+  if (isDev) {
+    mainWindow.loadURL('http://localhost:3000');
     mainWindow.webContents.openDevTools();
   } else {
-    mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
+    await loadURL(mainWindow);
   }
 
   mainWindow.on('closed', () => {

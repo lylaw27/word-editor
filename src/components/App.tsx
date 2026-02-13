@@ -1,11 +1,13 @@
+'use client';
+
 import { useState } from 'react';
-import { useEditor } from './context/EditorContext';
-import { isElectron } from './utils/platform';
-import MenuBar from './components/MenuBar';
-import TiptapEditor from './components/TiptapEditor';
-import StatusBar from './components/StatusBar';
-import ChatPanel from './components/ChatPanel';
-import FileExplorer from './components/FileExplorer';
+import { useEditor } from '@/context/EditorContext';
+import { isElectron } from '@/utils/platform';
+import MenuBar from './MenuBar';
+import TiptapEditor from './TiptapEditor';
+import StatusBar from './StatusBar';
+import ChatPanel from './ChatPanel';
+import FileExplorer from './FileExplorer';
 
 function App() {
   const { currentFile } = useEditor();

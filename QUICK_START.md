@@ -57,7 +57,7 @@ That's it! 🎉
 1. **src/components/ChatPanel.tsx** - Main chat interface
 2. **src/components/ui/** - shadcn-style components (Button, Input, Card, ScrollArea)
 3. **src/lib/utils.ts** - Utility functions
-4. **electron/api-server.ts** - Express API server for chat
+4. **src/api/api-server.ts** - Express API server for chat
 5. **.env** - Environment variables (add your API key here!)
 6. **AI_CHAT_SETUP.md** - Detailed documentation
 
@@ -92,7 +92,7 @@ That's it! 🎉
 ## 🎯 Next Steps
 
 Now that the AI chat is set up, you can:
-1. Customize the system prompt in `electron/api-server.ts`
+1. Customize the system prompt in `src/api/api-server.ts`
 2. Add more AI capabilities
 3. Save chat history
 4. Add document context awareness

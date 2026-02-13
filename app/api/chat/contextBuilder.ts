@@ -148,10 +148,7 @@ When editing:
    - New text: <span style="background-color: #d4edda; color: #155724;">new</span>
 5. Preserve existing HTML tags and formatting on unchanged content
 6. Copy oldHtml exactly from the Document HTML to ensure a match
-
-When the user asks about topics that may exist in embedded documents, use retrievalTool to retrieve relevant knowledge BEFORE responding or editing.
 `);
 
-  return sections.join('\n\n');
+  return sections.join('\n');
 }
-

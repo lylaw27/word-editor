@@ -1,3 +1,5 @@
+'use client';
+
 /**
  * TipTap Editor Context
  * 

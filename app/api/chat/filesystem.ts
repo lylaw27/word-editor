@@ -3,8 +3,8 @@
  * Provides cross-platform file operations that work in both Electron and web environments
  */
 
-import { isElectron, supportsFileSystemAccess } from '../utils/platform';
-import type { FileData, SaveResult, DirectoryContents } from '../../electron/types';
+import { isElectron, supportsFileSystemAccess } from '../../../src/utils/platform';
+import type { FileData, SaveResult, DirectoryContents } from '../../../electron/types';
 
 // Extended file handle for web environment
 interface WebFileHandle {

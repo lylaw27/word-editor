@@ -1,3 +1,5 @@
+'use client'
+
 import { useEffect, useCallback, useRef, useState } from 'react';
 import { useEditor as useTiptapEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
@@ -20,7 +22,7 @@ import { PersistentSelection } from '../extensions/PersistentSelection';
 import Toolbar from './Toolbar';
 import ChangeReviewOverlay from './ChangeReviewOverlay';
 import { hasTrackedChanges, acceptAllChanges, rejectAllChanges } from '../utils/changeTracking';
-import * as FileSystemAPI from '../api/filesystem';
+import * as FileSystemAPI from '../../app/api/chat/filesystem';
 
 export default function TiptapEditor() {
   const {
@@ -43,6 +45,7 @@ export default function TiptapEditor() {
 
   // Initialize TipTap editor
   const editor = useTiptapEditor({
+    immediatelyRender: false,
     extensions: [
       StarterKit.configure({
         heading: {

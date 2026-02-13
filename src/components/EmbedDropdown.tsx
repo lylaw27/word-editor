@@ -1,8 +1,10 @@
+'use client';
+
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { Database, Upload, FileText, CheckCircle, AlertCircle, Loader2, X, ChevronDown, Trash2 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { isElectron } from '../utils/platform';
-import { selectPDFFile } from '../api/filesystem';
+import { selectPDFFile } from '../../app/api/chat/filesystem';
 
 type EmbedStatus = 'idle' | 'uploading' | 'processing' | 'done' | 'error';
 
